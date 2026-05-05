@@ -101,18 +101,30 @@ Use [`scripts/generate_plan_from_comments.sh`](scripts/generate_plan_from_commen
 
 Examples:
 ```bash
-# Print generated section to stdout
+# Print a full implementation-focused plan to stdout
 scripts/generate_plan_from_comments.sh \
   --comments-dir /tmp/pr-comments-78 \
+  --repo-dir /path/to/repo \
+  --base-ref upstream/main \
+  --head-ref pr-78 \
+  --checkpatch-cmd "./linux/scripts/checkpatch.pl --no-tree --file lib/rpmi_service_group_logging.c" \
   --include-reviews
 
-# Save section to a file
+# Save full plan to a file
 scripts/generate_plan_from_comments.sh \
   --comments-dir /tmp/pr-comments-78 \
+  --repo-dir /path/to/repo \
+  --base-ref upstream/main \
+  --head-ref pr-78 \
+  --checkpatch-cmd "<repo-checkpatch-command>" \
   --output /tmp/pr-comments-78/plan_section.md
 
-# Append section directly to existing plan.md
+# Overwrite plan.md directly
 scripts/generate_plan_from_comments.sh \
   --comments-dir /tmp/pr-comments-78 \
+  --repo-dir /path/to/repo \
+  --base-ref upstream/main \
+  --head-ref pr-78 \
+  --checkpatch-cmd "<repo-checkpatch-command>" \
   --plan-file ./plan.md
 ```
