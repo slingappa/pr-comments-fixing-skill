@@ -227,7 +227,8 @@ if [[ "$run_validation" -eq 1 ]]; then
   test_log="$(mktemp)"
   cpatch_log="$(mktemp)"
   patch_file="$(mktemp)"
-  trap 'rm -f "$tmp_tsv" "$tmp_tsv_norm" "$tmp_report" "$build_log" "$test_log" "$cpatch_log" "$patch_file"' EXIT
+  patch_dir="$(mktemp -d)"
+  trap 'rm -f "$tmp_tsv" "$tmp_tsv_norm" "$tmp_report" "$build_log" "$test_log" "$cpatch_log" "$patch_file"; rm -rf "$patch_dir"' EXIT
 
   # Resolve a usable base ref automatically when requested/default is unavailable.
   if ! git -C "$repo_dir" rev-parse --verify "$resolved_base_ref" >/dev/null 2>&1; then
@@ -303,24 +304,59 @@ if [[ "$run_validation" -eq 1 ]]; then
 
     if git -C "$repo_dir" rev-parse --verify "$resolved_base_ref" >/dev/null 2>&1; then
       git -C "$repo_dir" format-patch --stdout "${resolved_base_ref}..HEAD" >"$patch_file" 2>"$cpatch_log" || true
-      if [[ -s "$patch_file" ]]; then
+      git -C "$repo_dir" format-patch -o "$patch_dir" "${resolved_base_ref}..HEAD" >>"$cpatch_log" 2>&1 || true
+      patch_files=( "$patch_dir"/*.patch )
+      has_patch_files=0
+      if [[ -e "${patch_files[0]}" ]]; then
+        has_patch_files=1
+      fi
+
+      if [[ -s "$patch_file" || "$has_patch_files" -eq 1 ]]; then
         checkpatch_cmd_used="$checkpatch_exec"
-        # Try stdin patch mode first.
-        checkpatch_rc=0
-        (cd "$repo_dir" && eval "cat \"$patch_file\" | ${checkpatch_exec} -" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
-        if [[ "$checkpatch_rc" -eq 0 ]]; then
-          checkpatch_status="PASS"
-          checkpatch_mode="stdin-patch"
+
+        if [[ "$checkpatch_exec" == *"PatchCheck.py"* ]]; then
+          # EDK2 PatchCheck is most reliable when passed patch file paths.
+          if [[ "$has_patch_files" -eq 1 ]]; then
+            checkpatch_rc=0
+            (cd "$repo_dir" && eval "${checkpatch_exec} \"${patch_files[@]}\"" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
+            if [[ "$checkpatch_rc" -eq 0 ]]; then
+              checkpatch_status="PASS"
+              checkpatch_mode="file-patch-batch"
+            else
+              checkpatch_status="FAIL"
+              checkpatch_mode="file-patch-batch-failed"
+            fi
+          else
+            checkpatch_rc=1
+            checkpatch_status="FAIL"
+            checkpatch_mode="no-patch-files-for-patchcheck"
+            echo "No patch files generated for PatchCheck.py fallback." >>"$cpatch_log"
+          fi
         else
-          # Fallback: pass patch filename directly.
+          # Generic checker: try stdin patch mailbox first.
           checkpatch_rc=0
-          (cd "$repo_dir" && eval "${checkpatch_exec} \"$patch_file\"" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
+          (cd "$repo_dir" && eval "cat \"$patch_file\" | ${checkpatch_exec} -" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
           if [[ "$checkpatch_rc" -eq 0 ]]; then
             checkpatch_status="PASS"
-            checkpatch_mode="file-patch-fallback"
+            checkpatch_mode="stdin-patch"
           else
-            checkpatch_status="FAIL"
-            checkpatch_mode="stdin+file-fallback-failed"
+            # Fallback: run checker per patch file and aggregate failures.
+            if [[ "$has_patch_files" -eq 1 ]]; then
+              checkpatch_rc=0
+              for pf in "${patch_files[@]}"; do
+                (cd "$repo_dir" && eval "${checkpatch_exec} \"$pf\"" >>"$cpatch_log" 2>&1) || checkpatch_rc=1
+              done
+              if [[ "$checkpatch_rc" -eq 0 ]]; then
+                checkpatch_status="PASS"
+                checkpatch_mode="file-patch-loop-fallback"
+              else
+                checkpatch_status="FAIL"
+                checkpatch_mode="stdin+file-loop-fallback-failed"
+              fi
+            else
+              checkpatch_status="FAIL"
+              checkpatch_mode="stdin-failed-no-file-fallback"
+            fi
           fi
         fi
       else
