@@ -56,6 +56,22 @@ If any input is missing, ask for it explicitly and do not guess checkpatch path.
    - Use specific commands and file names.
    - Include definition of done tied to reviewer intent.
 
+6. Execute fixes from `plan.md` (one task at a time)
+   - Work strictly top-to-bottom through actionable items in `plan.md`.
+   - Implement only one task (or one tightly-coupled subtask) before committing.
+   - Run relevant validation for that task before committing.
+   - Create one focused commit per task with message format:
+     - `pr-<number>: address comment <comment-id> <short-topic>`
+   - Update `plan.md` task status after each commit (`todo` -> `done` + commit hash).
+
+7. Final history shaping (only with explicit user approval)
+   - Default: keep per-task commits for review transparency.
+   - If user explicitly asks, squash fix commits and amend the original PR commit.
+   - Before amend/squash:
+     - show user the commit list to be squashed
+     - confirm tests/checks are still passing
+   - Never amend/squash implicitly.
+
 ## Output Contract
 
 When complete, `plan.md` must contain:
@@ -65,6 +81,7 @@ When complete, `plan.md` must contain:
 4. Fix implementation sequence
 5. Validation commands including repo-specific checkpatch command
 6. PR update workflow (reply/resolve/re-review)
+7. Task status tracking fields suitable for one-task-at-a-time execution
 
 ## Command Patterns
 

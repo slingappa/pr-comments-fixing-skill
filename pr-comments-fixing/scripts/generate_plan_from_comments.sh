@@ -219,6 +219,8 @@ while IFS=$'\x1f' read -r id path line body url; do
 
   printf '%s. **`%s:%s`** (%s)\n' "$idx" "$path" "$line" "comment id ${id}" >> "$action_rows"
   printf '   - Reviewer comment: "%s"\n' "$body" >> "$action_rows"
+  printf '   - Status: `todo`\n' >> "$action_rows"
+  printf '   - Commit: `pending`\n' >> "$action_rows"
   printf '   - Plan: %s\n' "$plan" >> "$action_rows"
   printf '   - Validation: %s\n' "$validation" >> "$action_rows"
   printf '   - Reference: %s\n\n' "$url" >> "$action_rows"
@@ -238,6 +240,8 @@ while IFS=$'\x1f' read -r id body url; do
   lower="$(printf '%s' "$body" | tr '[:upper:]' '[:lower:]')"
   if [[ "$lower" == *"mailid"* || "$lower" == *"email"* ]]; then
     printf -- '- **PR-level process item** (`%s`): %s\n' "$id" "$body" >> "$action_rows"
+    printf -- '  - Status: `todo`\n' >> "$action_rows"
+    printf -- '  - Commit: `pending`\n' >> "$action_rows"
     printf -- '  - Plan: Update git author email / GitHub noreply email to OSS identity before follow-up commits.\n' >> "$action_rows"
     printf -- '  - Validation: New commits in PR show expected OSS email identity.\n' >> "$action_rows"
     printf -- '  - Reference: %s\n\n' "$url" >> "$action_rows"
@@ -408,6 +412,14 @@ markdown="$comments_dir/.tmp_plan_full.md"
   echo "2. Reply on each thread with commit hash and short resolution note."
   echo "3. Resolve threads only after code is pushed and visible."
   echo "4. Request re-review with comment-id to patch mapping."
+  echo
+  echo "## 7. Execution mode (one task at a time)"
+  echo '1. Pick the next `Status: todo` item in this plan.'
+  echo "2. Implement only that task, run its validation, and commit."
+  echo '3. Update that item to `Status: done` and replace `Commit: pending` with the commit hash.'
+  echo "4. Repeat until all actionable items are done."
+  echo "5. Keep commits separate by task unless user explicitly requests squashing."
+  echo "6. Squash/amend original commit only after explicit user approval."
   echo
   echo "## Definition of Done"
   echo "- Every actionable comment has either a code fix or explicit rationale."
