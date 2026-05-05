@@ -256,6 +256,15 @@ STATS
 )
 fi
 
+# Resolve head commit hash when repo context is available.
+source_tip=""
+if [[ -n "$repo_dir" && -d "$repo_dir/.git" ]]; then
+  require_cmd git
+  if git -C "$repo_dir" rev-parse --verify "$head_ref" >/dev/null 2>&1; then
+    source_tip="$(git -C "$repo_dir" rev-parse --short "$head_ref" 2>/dev/null || true)"
+  fi
+fi
+
 # Detect common fix intents from review comment text.
 need_defgroup="$(jq -r 'any(.[]; ((.body // "") | ascii_downcase | test("\\\\defgroup")))' "$review_json")"
 need_style="$(jq -r 'any(.[]; ((.body // "") | ascii_downcase | test("indent|checkpatch|format")))' "$review_json")"
@@ -297,6 +306,9 @@ markdown="$comments_dir/.tmp_plan_full.md"
   echo "$header_line"
   echo
   echo "$pr_line  "
+  if [[ -n "$source_tip" ]]; then
+    echo "Source branch tip: ${source_tip}  "
+  fi
   if [[ -n "$head_ref" ]]; then
     echo "Target head ref: ${head_ref}  "
   fi
