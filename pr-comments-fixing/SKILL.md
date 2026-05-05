@@ -18,6 +18,8 @@ Request these inputs before doing PR analysis:
    - Acceptable fallback: owner/repo + PR number
 3. Checkpatch script command/path used by this repo
    - Examples: `./scripts/checkpatch.pl`, `./linux/scripts/checkpatch.pl`, or custom wrapper
+   - Prefer patch-mode invocation against the reviewed diff:
+     - `git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -`
 
 If any input is missing, ask for it explicitly and do not guess checkpatch path.
 
@@ -50,7 +52,7 @@ If any input is missing, ask for it explicitly and do not guess checkpatch path.
    - Include actual comment inventory (counts and date fetched).
    - Add comment-by-comment implementation plan with concrete tasks.
    - Add commit sequencing plan.
-   - Add verification checklist including build/test and checkpatch command supplied by user.
+   - Add verification checklist including build/test and patch-mode checkpatch command supplied by user.
 
 5. Keep plan implementation-ready
    - Use specific commands and file names.
@@ -124,7 +126,7 @@ scripts/generate_plan_from_comments.sh \
   --repo-dir /path/to/repo \
   --base-ref upstream/main \
   --head-ref pr-78 \
-  --checkpatch-cmd "./linux/scripts/checkpatch.pl --no-tree --file lib/rpmi_service_group_logging.c" \
+  --checkpatch-cmd "./linux/scripts/checkpatch.pl --no-tree" \
   --include-reviews
 
 # Save full plan to a file
@@ -145,3 +147,8 @@ scripts/generate_plan_from_comments.sh \
   --checkpatch-cmd "<repo-checkpatch-command>" \
   --plan-file ./plan.md
 ```
+
+Notes:
+- The generated verification checklist uses patch-mode checkpatch:
+  - `git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -`
+- Use file-mode (`--file`) only when repo policy explicitly requires it.

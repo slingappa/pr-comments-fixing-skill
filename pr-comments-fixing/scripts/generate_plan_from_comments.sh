@@ -13,7 +13,7 @@ Options:
   --repo-dir <dir>       Local git repo path for diff-based scope detection
   --base-ref <ref>       Base ref for scope diff (default: upstream/main)
   --head-ref <ref>       Head ref for scope diff (default: pr-<number> if available, else HEAD)
-  --checkpatch-cmd <cmd> Repo-specific checkpatch command to include in verification checklist
+  --checkpatch-cmd <cmd> Repo-specific checkpatch command/prefix (patch-mode will be generated)
   --output <file>        Write markdown output to file (default: stdout)
   --plan-file <plan.md>  If provided, overwrite this file with generated markdown
   --include-reviews      Include review summary count/state breakdown when reviews.json exists
@@ -193,7 +193,7 @@ while IFS=$'\x1f' read -r id path line body url; do
   elif [[ "$lower" == *"indent"* || "$lower" == *"checkpatch"* || "$lower" == *"format"* ]]; then
     plan="Fix indentation/style in logging service implementation to match project conventions."
     if [[ -n "$checkpatch_cmd" ]]; then
-      validation="Run: ${checkpatch_cmd} and ensure no new style issues in touched file(s)."
+      validation="Run patch-mode checkpatch on reviewed range and ensure no new style issues."
     else
       validation="Run repo-specific checkpatch command provided by user and ensure no new style issues."
     fi
@@ -300,9 +300,9 @@ if [[ -n "$owner" && -n "$repo" && -n "$pr" ]]; then
   pr_line="PR: https://github.com/${owner}/${repo}/pull/${pr}"
 fi
 
-checkpatch_line='[user must provide repo-specific checkpatch command]'
+checkpatch_line="git format-patch --stdout ${base_ref}..HEAD | [user-checkpatch-cmd] -"
 if [[ -n "$checkpatch_cmd" ]]; then
-  checkpatch_line="$checkpatch_cmd"
+  checkpatch_line="git format-patch --stdout ${base_ref}..HEAD | ${checkpatch_cmd} -"
 fi
 
 markdown="$comments_dir/.tmp_plan_full.md"
@@ -404,6 +404,7 @@ markdown="$comments_dir/.tmp_plan_full.md"
   echo "1. make clean && make -j\$(nproc)"
   echo "2. make test (if target exists)"
   echo "3. ${checkpatch_line}"
+  echo "   - Fallback only if required by repo policy: run checkpatch in file mode on touched files."
   echo "4. rg -n \"do_set_logging|is_be\" include lib (or repo-equivalent)"
   echo "5. git diff --stat ${base_ref}...HEAD and git status --short"
   echo
@@ -424,7 +425,7 @@ markdown="$comments_dir/.tmp_plan_full.md"
   echo "## Definition of Done"
   echo "- Every actionable comment has either a code fix or explicit rationale."
   echo "- API/behavior updates match reviewer intent."
-  echo "- Style/build checks pass with repo-specific checkpatch + tests/build commands."
+  echo "- Style/build checks pass with patch-mode checkpatch + tests/build commands."
   echo "- Diff is limited to PR-related changes."
 } > "$markdown"
 
