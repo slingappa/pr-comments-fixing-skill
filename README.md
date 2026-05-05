@@ -19,6 +19,30 @@ The skill helps you:
 - `pr-comments-fixing/scripts/fetch_pr_comments.sh`: fetch comment artifacts
 - `pr-comments-fixing/scripts/generate_plan_from_comments.sh`: generate implementation-focused `plan.md`
 
+## Clone
+
+SSH (recommended for private repo access):
+
+```bash
+GIT_SSH_COMMAND='ssh -i ~/.ssh/slingappa_git/id_rsa -o IdentitiesOnly=yes' \
+git clone git@github.com:slingappa/pr-comments-fixing-skill.git
+cd pr-comments-fixing-skill
+```
+
+HTTPS:
+
+```bash
+git clone https://github.com/slingappa/pr-comments-fixing-skill.git
+cd pr-comments-fixing-skill
+```
+
+Checkout latest main:
+
+```bash
+git checkout main
+git pull --ff-only
+```
+
 ## Install
 
 ```bash
