@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Comments Fixing"
+  short_description: "Review PR comments and plan implementation fixes"
+  default_prompt: "Use $pr-comments-fixing to collect PR comments and generate an implementation-focused plan.md."
