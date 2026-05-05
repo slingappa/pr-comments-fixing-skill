@@ -9,6 +9,7 @@ The skill helps you:
 2. Generate an actionable `plan.md` for the PR.
 3. Execute fixes one task at a time from `plan.md`.
 4. Commit each task separately and track status/commit hash in the plan.
+5. Handle bad/unclear comments explicitly with per-item disposition + rationale.
 
 ## Repository layout
 
@@ -57,10 +58,14 @@ Fetch latest comments, regenerate plan.md, then execute fixes one task at a time
 ## Execution model
 
 - Work top-to-bottom through `Status: todo` items in `plan.md`.
+- Use `Disposition` to decide handling:
+- `implement`: code change + validation + commit
+- `clarify-with-reviewer`: ask/answer first, no code change until clarified
+- `reject-with-rationale`: document reason and skip code change
 - Implement one task (or tightly coupled subtask set) at a time.
 - Validate after each task.
 - Commit each task separately.
-- Update `Status` and `Commit` in `plan.md` after each commit.
+- Update `Status`, `Commit`, and `Rationale` fields in `plan.md`.
 - Only squash/amend original commit after explicit user approval.
 
 ## Notes

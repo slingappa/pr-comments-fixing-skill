@@ -219,6 +219,8 @@ while IFS=$'\x1f' read -r id path line body url; do
 
   printf '%s. **`%s:%s`** (%s)\n' "$idx" "$path" "$line" "comment id ${id}" >> "$action_rows"
   printf '   - Reviewer comment: "%s"\n' "$body" >> "$action_rows"
+  printf '   - Disposition: `implement`\n' >> "$action_rows"
+  printf '   - Rationale: `pending`\n' >> "$action_rows"
   printf '   - Status: `todo`\n' >> "$action_rows"
   printf '   - Commit: `pending`\n' >> "$action_rows"
   printf '   - Plan: %s\n' "$plan" >> "$action_rows"
@@ -240,6 +242,8 @@ while IFS=$'\x1f' read -r id body url; do
   lower="$(printf '%s' "$body" | tr '[:upper:]' '[:lower:]')"
   if [[ "$lower" == *"mailid"* || "$lower" == *"email"* ]]; then
     printf -- '- **PR-level process item** (`%s`): %s\n' "$id" "$body" >> "$action_rows"
+    printf -- '  - Disposition: `non-code-process`\n' >> "$action_rows"
+    printf -- '  - Rationale: `account/config update required`\n' >> "$action_rows"
     printf -- '  - Status: `todo`\n' >> "$action_rows"
     printf -- '  - Commit: `pending`\n' >> "$action_rows"
     printf -- '  - Plan: Update git author email / GitHub noreply email to OSS identity before follow-up commits.\n' >> "$action_rows"
@@ -415,15 +419,17 @@ markdown="$comments_dir/.tmp_plan_full.md"
   echo "4. Request re-review with comment-id to patch mapping."
   echo
   echo "## 7. Execution mode (one task at a time)"
-  echo '1. Pick the next `Status: todo` item in this plan.'
-  echo "2. Implement only that task, run its validation, and commit."
-  echo '3. Update that item to `Status: done` and replace `Commit: pending` with the commit hash.'
-  echo "4. Repeat until all actionable items are done."
-  echo "5. Keep commits separate by task unless user explicitly requests squashing."
-  echo "6. Squash/amend original commit only after explicit user approval."
+  echo '1. Pick the next item with `Status: todo`.'
+  echo '2. If `Disposition: implement`, implement only that task, run validation, and commit.'
+  echo '3. If `Disposition: clarify-with-reviewer`, draft/post clarification and set status accordingly without code changes.'
+  echo '4. If `Disposition: reject-with-rationale`, post rationale response and do not change code for that item.'
+  echo '5. Update each completed item with final `Status` and `Commit` (or `n/a` for non-code items).'
+  echo "6. Keep commits separate by task unless user explicitly requests squashing."
+  echo "7. Squash/amend original commit only after explicit user approval."
   echo
   echo "## Definition of Done"
   echo "- Every actionable comment has either a code fix or explicit rationale."
+  echo "- Any disputed/low-quality comment is captured with disposition and rationale."
   echo "- API/behavior updates match reviewer intent."
   echo "- Style/build checks pass with patch-mode checkpatch + tests/build commands."
   echo "- Diff is limited to PR-related changes."

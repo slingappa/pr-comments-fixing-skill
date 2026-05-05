@@ -39,14 +39,19 @@ If any input is missing, ask for it explicitly and do not guess checkpatch path.
    - Capture ids, file path, line, commenter, and comment text.
 
 3. Build actionable fix map
-   - Mark each comment as:
-     - `actionable-code-change`
-     - `non-code-process` (for example email/account setting notes)
-     - `clarification-needed`
-   - For actionable comments, map to:
-     - target file(s)
-     - expected API/behavior change
-     - acceptance check
+  - Mark each comment as:
+    - `actionable-code-change`
+    - `non-code-process` (for example email/account setting notes)
+    - `clarification-needed`
+  - Assign a disposition for each review comment:
+    - `implement`
+    - `clarify-with-reviewer`
+    - `reject-with-rationale`
+  - For actionable comments, map to:
+    - target file(s)
+    - expected API/behavior change
+    - acceptance check
+  - For `clarify-with-reviewer` or `reject-with-rationale`, add a concise rationale and no code-change task.
 
 4. Update `plan.md`
    - Include actual comment inventory (counts and date fetched).
@@ -59,8 +64,11 @@ If any input is missing, ask for it explicitly and do not guess checkpatch path.
    - Include definition of done tied to reviewer intent.
 
 6. Execute fixes from `plan.md` (one task at a time)
-   - Work strictly top-to-bottom through actionable items in `plan.md`.
-   - Implement only one task (or one tightly-coupled subtask) before committing.
+  - Work strictly top-to-bottom through actionable items in `plan.md`.
+  - Execute only items with `Disposition: implement`.
+  - For `Disposition: clarify-with-reviewer`, post clarification question first.
+  - For `Disposition: reject-with-rationale`, post rationale response and do not change code for that item.
+  - Implement only one task (or one tightly-coupled subtask) before committing.
    - Run relevant validation for that task before committing.
    - Create one focused commit per task with message format:
      - `pr-<number>: address comment <comment-id> <short-topic>`
@@ -84,6 +92,7 @@ When complete, `plan.md` must contain:
 5. Validation commands including repo-specific checkpatch command
 6. PR update workflow (reply/resolve/re-review)
 7. Task status tracking fields suitable for one-task-at-a-time execution
+8. Disposition and rationale fields for handling low-quality or incorrect comments
 
 ## Command Patterns
 
