@@ -18,6 +18,7 @@ The skill helps you:
 - `pr-comments-fixing/agents/openai.yaml`: UI metadata
 - `pr-comments-fixing/scripts/fetch_pr_comments.sh`: fetch comment artifacts
 - `pr-comments-fixing/scripts/generate_plan_from_comments.sh`: generate implementation-focused `plan.md`
+- `pr-comments-fixing/scripts/plan_status_report.sh`: generate compact task/validation report (`plan.status.md`)
 
 ## Clone
 
@@ -107,9 +108,25 @@ Use the bundled script to summarize execution progress from `plan.md` and option
   --base-ref upstream/main \
   --checkpatch-cmd "~/git/linux/scripts/checkpatch.pl --no-tree" \
   --run-validation
+
+# EDK2-style checker example
+./pr-comments-fixing/scripts/plan_status_report.sh \
+  --plan-file /abs/path/to/repo/plan.md \
+  --repo-dir /abs/path/to/repo \
+  --base-ref origin/master \
+  --checkpatch-cmd "./BaseTools/Scripts/PatchCheck.py --oneline" \
+  --run-validation \
+  --output /abs/path/to/repo/plan.status.md
 ```
 
 ## Notes
 
 - If GitHub API rate-limit/auth blocks comment fetch, provide `GITHUB_TOKEN` or pass `--token` to `fetch_pr_comments.sh`.
 - `generate_plan_from_comments.sh` can overwrite `plan.md` via `--plan-file`.
+- `plan_status_report.sh` supports both plan formats:
+  - generated "Actionable review comments" format
+  - custom `## Tasks` format with `Disposition/Status/Commit` fields
+- Validation is adaptive:
+  - auto base-ref fallback (`upstream/*`, `origin/*`, `main/master`)
+  - adaptive build/test probing (reports `SKIPPED` when generic commands do not apply)
+  - checker-aware patch mode (stdin patch, file fallback, and Python PatchCheck batch mode)
