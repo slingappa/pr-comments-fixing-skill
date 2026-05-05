@@ -46,7 +46,6 @@ git pull --ff-only
 ## Install
 
 ```bash
-cd /path/to/pr-comments-fixing-skill
 ./install.sh --force
 ```
 
