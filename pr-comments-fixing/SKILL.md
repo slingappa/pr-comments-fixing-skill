@@ -161,3 +161,20 @@ Notes:
 - The generated verification checklist uses patch-mode checkpatch:
   - `git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -`
 - Use file-mode (`--file`) only when repo policy explicitly requires it.
+
+Use [`scripts/plan_status_report.sh`](scripts/plan_status_report.sh) to show compact execution status and optional compact validation results.
+
+Examples:
+```bash
+# Status-only report from plan.md
+scripts/plan_status_report.sh \
+  --plan-file /path/to/repo/plan.md
+
+# Status + compact validation report
+scripts/plan_status_report.sh \
+  --plan-file /path/to/repo/plan.md \
+  --repo-dir /path/to/repo \
+  --base-ref upstream/main \
+  --checkpatch-cmd "~/git/linux/scripts/checkpatch.pl --no-tree" \
+  --run-validation
+```

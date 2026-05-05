@@ -91,6 +91,24 @@ Fetch latest comments, regenerate plan.md, then execute fixes one task at a time
 - Update `Status`, `Commit`, and `Rationale` fields in `plan.md`.
 - Only squash/amend original commit after explicit user approval.
 
+## Compact status and validation report
+
+Use the bundled script to summarize execution progress from `plan.md` and optionally run compact validation checks.
+
+```bash
+# Status-only summary
+./pr-comments-fixing/scripts/plan_status_report.sh \
+  --plan-file /abs/path/to/repo/plan.md
+
+# Status + compact validation summary
+./pr-comments-fixing/scripts/plan_status_report.sh \
+  --plan-file /abs/path/to/repo/plan.md \
+  --repo-dir /abs/path/to/repo \
+  --base-ref upstream/main \
+  --checkpatch-cmd "~/git/linux/scripts/checkpatch.pl --no-tree" \
+  --run-validation
+```
+
 ## Notes
 
 - If GitHub API rate-limit/auth blocks comment fetch, provide `GITHUB_TOKEN` or pass `--token` to `fetch_pr_comments.sh`.
