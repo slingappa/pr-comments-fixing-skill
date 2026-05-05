@@ -16,10 +16,8 @@ Request these inputs before doing PR analysis:
 2. PR details
    - Preferred: full PR URL
    - Acceptable fallback: owner/repo + PR number
-3. Checkpatch script command/path used by this repo
-   - Examples: `./scripts/checkpatch.pl`, `./linux/scripts/checkpatch.pl`, or custom wrapper
-   - Prefer patch-mode invocation against the reviewed diff:
-     - `git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -`
+3. Checkpatch tool path used by this repo
+   - Examples: `./scripts/checkpatch.pl`, `./linux/scripts/checkpatch.pl`, `./BaseTools/Scripts/PatchCheck.py`, or custom checker path
 
 If any input is missing, ask for it explicitly and do not guess checkpatch path.
 
@@ -28,6 +26,10 @@ If any input is missing, ask for it explicitly and do not guess checkpatch path.
 1. Enter repo and verify context
    - Confirm git repo, remotes, current branch, and worktree status.
    - Fetch PR head into a local branch ref.
+   - Probe checker usage from the provided checkpatch tool path:
+     - Try `--help` then `-h` (and `python3 <tool> --help` when tool is Python script).
+     - Infer invocation style (`stdin patch`, `patch file path`, `git rev/range`, or mixed).
+     - Use inferred style in validation/reporting instead of hardcoding one mode.
 
 2. Fetch actual PR comments
    - Pull review comments:

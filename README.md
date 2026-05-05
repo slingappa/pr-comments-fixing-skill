@@ -61,13 +61,7 @@ Optional destination:
 Provide these in your prompt:
 1. Repo folder path
 2. PR URL (or owner/repo + PR number)
-3. Checkpatch command/path for your environment
-
-Recommended checkpatch usage is patch-mode (not single-file mode):
-
-```bash
-git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -
-```
+3. Checkpatch tool path for your environment
 
 ## Recommended prompt template
 
@@ -75,7 +69,7 @@ git format-patch --stdout <base>..HEAD | <checkpatch-cmd> -
 Use $pr-comments-fixing.
 Repo: /abs/path/to/repo.
 PR: https://github.com/<owner>/<repo>/pull/<number>.
-Checkpatch command: /abs/path/to/checkpatch.pl --no-tree.
+Checkpatch tool: /abs/path/to/<checkpatch_tool>.
 Fetch latest comments, regenerate plan.md, then execute fixes one task at a time from plan.md with one commit per task, updating Status/Commit fields after each commit. Do not squash/amend unless I explicitly approve.
 ```
 
@@ -129,4 +123,4 @@ Use the bundled script to summarize execution progress from `plan.md` and option
 - Validation is adaptive:
   - auto base-ref fallback (`upstream/*`, `origin/*`, `main/master`)
   - adaptive build/test probing (reports `SKIPPED` when generic commands do not apply)
-  - checker-aware patch mode (stdin patch, file fallback, and Python PatchCheck batch mode)
+  - checker-aware invocation by inspecting the user-provided check tool behavior (stdin patch, file fallback, and Python PatchCheck batch mode)
