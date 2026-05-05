@@ -91,28 +91,45 @@ function btval(s,   t) {
   sub(/`.*$/, "", t)
   return t
 }
-BEGIN {
-  in_task=0
-  in_action=0
-}
-/^### Actionable review comments and implementation plan/ {
-  in_action=1
-  next
-}
-/^## 3\\. / {
-  in_action=0
+function flush_task() {
   if (in_task) {
     print idx "\t" comment_id "\t" disposition "\t" status "\t" commit "\t" kind
     in_task=0
   }
+}
+BEGIN {
+  in_task=0
+  in_action=0
+  in_tasks=0
+}
+/^### Actionable review comments and implementation plan/ {
+  flush_task()
+  in_action=1
+  in_tasks=0
+  next
+}
+/^## Tasks/ {
+  flush_task()
+  in_tasks=1
+  in_action=0
+  next
+}
+/^## 3\\. / {
+  flush_task()
+  in_action=0
+  in_tasks=0
+  next
+}
+/^## / {
+  flush_task()
+  in_tasks=0
+  in_action=0
   next
 }
 /^[0-9]+\. \*\*/ {
   if (!in_action)
     next
-  if (in_task) {
-    print idx "\t" comment_id "\t" disposition "\t" status "\t" commit "\t" kind
-  }
+  flush_task()
   in_task=1
   kind="comment"
   idx=$1
@@ -126,12 +143,24 @@ BEGIN {
   commit="pending"
   next
 }
+/^[0-9]+\.[[:space:]]/ {
+  if (!in_tasks)
+    next
+  flush_task()
+  in_task=1
+  kind="comment"
+  idx=$1
+  sub(/\./, "", idx)
+  comment_id=""
+  disposition="unknown"
+  status="unknown"
+  commit="pending"
+  next
+}
 /^- \*\*PR-level process item\*\*/ {
   if (!in_action)
     next
-  if (in_task) {
-    print idx "\t" comment_id "\t" disposition "\t" status "\t" commit "\t" kind
-  }
+  flush_task()
   in_task=1
   kind="process"
   idx="P"
@@ -156,15 +185,20 @@ in_task && /- Commit:/ {
   commit=btval($0)
   next
 }
+in_task && /- Comment IDs:/ {
+  if (match($0, /`[0-9]+`/)) {
+    comment_id=substr($0, RSTART + 1, RLENGTH - 2)
+  } else if (match($0, /[0-9]{6,}/)) {
+    comment_id=substr($0, RSTART, RLENGTH)
+  }
+  next
+}
 in_task && /- Reference:/ {
-  print idx "\t" comment_id "\t" disposition "\t" status "\t" commit "\t" kind
-  in_task=0
+  flush_task()
   next
 }
 END {
-  if (in_task) {
-    print idx "\t" comment_id "\t" disposition "\t" status "\t" commit "\t" kind
-  }
+  flush_task()
 }
 ' "$plan_file" > "$tmp_tsv"
 
