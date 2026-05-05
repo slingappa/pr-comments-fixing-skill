@@ -79,7 +79,8 @@ require_cmd sed
 require_cmd grep
 
 tmp_tsv="$(mktemp)"
-trap 'rm -f "$tmp_tsv" "$tmp_report"' EXIT
+tmp_tsv_norm="$(mktemp)"
+trap 'rm -f "$tmp_tsv" "$tmp_tsv_norm" "$tmp_report"' EXIT
 
 tmp_report="$(mktemp)"
 
@@ -167,14 +168,23 @@ END {
 }
 ' "$plan_file" > "$tmp_tsv"
 
+# Normalize missing disposition values for older plans.
+awk -F'\t' 'BEGIN {OFS="\t"} {
+  disp=$3
+  if (disp == "unknown" && $6 == "comment") {
+    disp="implement"
+  }
+  print $1, $2, disp, $4, $5, $6
+}' "$tmp_tsv" > "$tmp_tsv_norm"
+
 valid_filter='($2 != "" || $6=="process")'
-total_items="$(awk -F'\t' "${valid_filter} {c++} END {print c+0}" "$tmp_tsv")"
-done_items="$(awk -F'\t' "${valid_filter} && \$4==\"done\" {c++} END {print c+0}" "$tmp_tsv")"
-todo_items="$(awk -F'\t' "${valid_filter} && \$4==\"todo\" {c++} END {print c+0}" "$tmp_tsv")"
-impl_items="$(awk -F'\t' "${valid_filter} && \$3==\"implement\" {c++} END {print c+0}" "$tmp_tsv")"
-process_items="$(awk -F'\t' "${valid_filter} && \$6==\"process\" {c++} END {print c+0}" "$tmp_tsv")"
-clarify_items="$(awk -F'\t' "${valid_filter} && \$3==\"clarify-with-reviewer\" {c++} END {print c+0}" "$tmp_tsv")"
-reject_items="$(awk -F'\t' "${valid_filter} && \$3==\"reject-with-rationale\" {c++} END {print c+0}" "$tmp_tsv")"
+total_items="$(awk -F'\t' "${valid_filter} {c++} END {print c+0}" "$tmp_tsv_norm")"
+done_items="$(awk -F'\t' "${valid_filter} && \$4==\"done\" {c++} END {print c+0}" "$tmp_tsv_norm")"
+todo_items="$(awk -F'\t' "${valid_filter} && \$4==\"todo\" {c++} END {print c+0}" "$tmp_tsv_norm")"
+impl_items="$(awk -F'\t' "${valid_filter} && \$3==\"implement\" {c++} END {print c+0}" "$tmp_tsv_norm")"
+process_items="$(awk -F'\t' "${valid_filter} && \$6==\"process\" {c++} END {print c+0}" "$tmp_tsv_norm")"
+clarify_items="$(awk -F'\t' "${valid_filter} && \$3==\"clarify-with-reviewer\" {c++} END {print c+0}" "$tmp_tsv_norm")"
+reject_items="$(awk -F'\t' "${valid_filter} && \$3==\"reject-with-rationale\" {c++} END {print c+0}" "$tmp_tsv_norm")"
 
 {
   echo "# Compact PR Plan Status Report"
@@ -193,7 +203,7 @@ reject_items="$(awk -F'\t' "${valid_filter} && \$3==\"reject-with-rationale\" {c
   echo "## Task Table"
   echo "| Item | Comment ID | Disposition | Status | Commit | Kind |"
   echo "| --- | --- | --- | --- | --- | --- |"
-  awk -F'\t' '($2 != "" || $6=="process") {printf "| %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6}' "$tmp_tsv"
+  awk -F'\t' '($2 != "" || $6=="process") {printf "| %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6}' "$tmp_tsv_norm"
 } > "$tmp_report"
 
 if [[ "$run_validation" -eq 1 ]]; then
@@ -201,38 +211,148 @@ if [[ "$run_validation" -eq 1 ]]; then
   [[ -d "$repo_dir/.git" ]] || err "Invalid repo dir: $repo_dir"
   require_cmd git
 
-  build_rc=0
-  test_rc=0
-  checkpatch_rc=0
+  build_rc=125
+  test_rc=125
+  checkpatch_rc=125
+  build_status="SKIPPED"
+  test_status="SKIPPED"
+  checkpatch_status="SKIPPED"
+  checkpatch_mode="not-run"
+  resolved_base_ref="$base_ref"
+  build_cmd_used="(none)"
+  test_cmd_used="(none)"
+  checkpatch_cmd_used="(none)"
 
   build_log="$(mktemp)"
   test_log="$(mktemp)"
   cpatch_log="$(mktemp)"
-  trap 'rm -f "$tmp_tsv" "$tmp_report" "$build_log" "$test_log" "$cpatch_log"' EXIT
+  patch_file="$(mktemp)"
+  trap 'rm -f "$tmp_tsv" "$tmp_tsv_norm" "$tmp_report" "$build_log" "$test_log" "$cpatch_log" "$patch_file"' EXIT
 
-  (cd "$repo_dir" && make -j"$(nproc)" >"$build_log" 2>&1) || build_rc=$?
-  (cd "$repo_dir" && make test >"$test_log" 2>&1) || test_rc=$?
+  # Resolve a usable base ref automatically when requested/default is unavailable.
+  if ! git -C "$repo_dir" rev-parse --verify "$resolved_base_ref" >/dev/null 2>&1; then
+    for cand in "upstream/main" "upstream/master" "origin/main" "origin/master" "main" "master"; do
+      if git -C "$repo_dir" rev-parse --verify "$cand" >/dev/null 2>&1; then
+        resolved_base_ref="$cand"
+        break
+      fi
+    done
+    if ! git -C "$repo_dir" rev-parse --verify "$resolved_base_ref" >/dev/null 2>&1; then
+      origin_head="$(git -C "$repo_dir" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null || true)"
+      if [[ -n "$origin_head" ]]; then
+        origin_head="${origin_head#refs/remotes/}"
+        if git -C "$repo_dir" rev-parse --verify "$origin_head" >/dev/null 2>&1; then
+          resolved_base_ref="$origin_head"
+        fi
+      fi
+    fi
+  fi
 
-  if [[ -n "$checkpatch_cmd" ]]; then
-    (cd "$repo_dir" && eval "git format-patch --stdout ${base_ref}..HEAD | ${checkpatch_cmd} -" >"$cpatch_log" 2>&1) || checkpatch_rc=$?
+  # Adaptive build check.
+  if [[ -f "$repo_dir/Makefile" || -f "$repo_dir/makefile" || -f "$repo_dir/GNUmakefile" ]]; then
+    build_cmd_used="make -j$(nproc)"
+    build_rc=0
+    (cd "$repo_dir" && make -j"$(nproc)" >"$build_log" 2>&1) || build_rc=$?
+    if [[ "$build_rc" -eq 0 ]]; then
+      build_status="PASS"
+    else
+      build_status="FAIL"
+    fi
+  elif [[ -f "$repo_dir/build.ninja" || -f "$repo_dir/build/build.ninja" ]]; then
+    build_cmd_used="ninja -C build"
+    build_rc=0
+    (cd "$repo_dir" && ninja -C build >"$build_log" 2>&1) || build_rc=$?
+    if [[ "$build_rc" -eq 0 ]]; then
+      build_status="PASS"
+    else
+      build_status="FAIL"
+    fi
   else
-    checkpatch_rc=125
+    echo "No recognized generic build system (make/ninja) found; skipping build check." >"$build_log"
+  fi
+
+  # Adaptive test check.
+  if [[ -f "$repo_dir/Makefile" || -f "$repo_dir/makefile" || -f "$repo_dir/GNUmakefile" ]]; then
+    test_cmd_used="make test"
+    test_rc=0
+    (cd "$repo_dir" && make test >"$test_log" 2>&1) || test_rc=$?
+    if [[ "$test_rc" -eq 0 ]]; then
+      test_status="PASS"
+    else
+      test_status="FAIL"
+    fi
+  elif [[ -d "$repo_dir/build" ]] && command -v ctest >/dev/null 2>&1; then
+    test_cmd_used="ctest --test-dir build --output-on-failure"
+    test_rc=0
+    (cd "$repo_dir" && ctest --test-dir build --output-on-failure >"$test_log" 2>&1) || test_rc=$?
+    if [[ "$test_rc" -eq 0 ]]; then
+      test_status="PASS"
+    else
+      test_status="FAIL"
+    fi
+  else
+    echo "No recognized generic test command found; skipping test check." >"$test_log"
+  fi
+
+  # Adaptive patch check: stdin-mode first, then file-mode fallback.
+  if [[ -n "$checkpatch_cmd" ]]; then
+    checkpatch_exec="$checkpatch_cmd"
+    if [[ "$checkpatch_exec" == *.py* ]] && [[ "$checkpatch_exec" != python* ]]; then
+      checkpatch_exec="python3 $checkpatch_exec"
+    fi
+
+    if git -C "$repo_dir" rev-parse --verify "$resolved_base_ref" >/dev/null 2>&1; then
+      git -C "$repo_dir" format-patch --stdout "${resolved_base_ref}..HEAD" >"$patch_file" 2>"$cpatch_log" || true
+      if [[ -s "$patch_file" ]]; then
+        checkpatch_cmd_used="$checkpatch_exec"
+        # Try stdin patch mode first.
+        checkpatch_rc=0
+        (cd "$repo_dir" && eval "cat \"$patch_file\" | ${checkpatch_exec} -" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
+        if [[ "$checkpatch_rc" -eq 0 ]]; then
+          checkpatch_status="PASS"
+          checkpatch_mode="stdin-patch"
+        else
+          # Fallback: pass patch filename directly.
+          checkpatch_rc=0
+          (cd "$repo_dir" && eval "${checkpatch_exec} \"$patch_file\"" >>"$cpatch_log" 2>&1) || checkpatch_rc=$?
+          if [[ "$checkpatch_rc" -eq 0 ]]; then
+            checkpatch_status="PASS"
+            checkpatch_mode="file-patch-fallback"
+          else
+            checkpatch_status="FAIL"
+            checkpatch_mode="stdin+file-fallback-failed"
+          fi
+        fi
+      else
+        checkpatch_rc=1
+        checkpatch_status="FAIL"
+        checkpatch_mode="patch-generation-failed"
+        echo "Unable to generate patch stream for ${resolved_base_ref}..HEAD" >>"$cpatch_log"
+      fi
+    else
+      checkpatch_rc=1
+      checkpatch_status="FAIL"
+      checkpatch_mode="invalid-base-ref"
+      echo "Invalid base ref for checkpatch: ${resolved_base_ref}" >"$cpatch_log"
+    fi
+  else
     echo "checkpatch command not provided" >"$cpatch_log"
   fi
 
-  diffstat="$(git -C "$repo_dir" diff --stat "${base_ref}...HEAD" 2>/dev/null || true)"
+  diffstat="$(git -C "$repo_dir" diff --stat "${resolved_base_ref}...HEAD" 2>/dev/null || true)"
   short_status="$(git -C "$repo_dir" status --short --branch 2>/dev/null || true)"
 
   {
     echo
     echo "## Validation (Compact)"
-    echo "- Build: $([[ $build_rc -eq 0 ]] && echo PASS || echo FAIL)"
-    echo "- Test: $([[ $test_rc -eq 0 ]] && echo PASS || echo FAIL)"
-    if [[ "$checkpatch_rc" -eq 125 ]]; then
-      echo "- Patch checkpatch: SKIPPED (missing --checkpatch-cmd)"
-    else
-      echo "- Patch checkpatch: $([[ $checkpatch_rc -eq 0 ]] && echo PASS || echo FAIL)"
-    fi
+    echo "- Base ref used: ${resolved_base_ref}"
+    echo "- Build: ${build_status}"
+    echo "- Test: ${test_status}"
+    echo "- Patch checkpatch: ${checkpatch_status}"
+    echo "- Checkpatch mode: ${checkpatch_mode}"
+    echo "- Build command: ${build_cmd_used}"
+    echo "- Test command: ${test_cmd_used}"
+    echo "- Checkpatch command: ${checkpatch_cmd_used}"
     echo
     echo "### Validation Snippets"
     echo "- Build log (first 10 lines):"
